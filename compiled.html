@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skate London Synchro Opens 2025</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    /* Hide scrollbar */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+  
+  <!-- Babel for in-browser compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Import Map for Modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- App Script -->
+  <script type="text/babel" data-type="module" data-presets="react,typescript">
+    import React, { useState, useEffect, useMemo } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { 
+      Clock, Users, Trophy, Star, MapPin, Shirt, ArrowRight, Home, 
+      Play, ChevronRight, AlertTriangle, CheckCircle, Search, Settings, 
+      Zap, Lock, Unlock, Calendar, Plus, Minus, Filter, Menu, Heart, X 
+    } from 'lucide-react';
+
+    // --- types.ts ---
+    const EventType = {
+      PRACTICE: 'Practice',
+      COMPETITION: 'Competition',
+      BREAK: 'Break',
+      PANEL_RESET: 'Panel Reset',
+      PRESENTATION: 'Presentation'
+    };
+
+    // --- utils.ts ---
+    const timeToMinutes = (timeStr) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const minutesToTime = (totalMinutes) => {
+      let hours = Math.floor(totalMinutes / 60);
+      const minutes = Math.floor(totalMinutes % 60);
+      hours = hours % 24;
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    };
+
+    const getMinutesFromMidnight = (date) => {
+      return date.getHours() * 60 + date.getMinutes();
+    };
+
+    const getEventStatus = (startMinutes, endMinutes, currentMinutes) => {
+      if (currentMinutes < startMinutes) return 'upcoming';
+      if (currentMinutes >= startMinutes && currentMinutes < endMinutes) return 'live';
+      return 'completed';
+    };
+
+    const formatDuration = (duration) => {
+        if (!duration) return '';
+        if (duration.includes(':')) {
+            const [min, sec] = duration.split(':');
+            if (parseInt(min) > 59) { 
+                return `${min}m`;
+            }
+            return parseInt(sec) > 0 ? `${parseInt(min)}m ${sec}s` : `${parseInt(min)}m`;
+        }
+        return duration;
+    };
+
+    const getRelativeTimeText = (targetMinutes, currentMinutes) => {
+      const diff = targetMinutes - currentMinutes;
+      if (diff > 0 && diff <= 60) {
+        return `Starts in ${diff} min`;
+      }
+      if (diff > 0 && diff <= 120) {
+        const hours = Math.floor(diff / 60);
+        const mins = diff % 60;
+        return `Starts in ${hours}h ${mins}m`;
+      }
+      return null;
+    };
+
+    // --- constants.ts ---
+    const EVENT_DATES = {
+      Friday: "Friday 14th November 2025",
+      Saturday: "Saturday 15th November 2025"
+    };
+
+    const RAW_SCHEDULE = [
+      // FRIDAY
+      { id: 'f_p1', day: 'Friday', startTime: '11:00', endTime: '11:10', duration: '10:00', team: 'Icicles Junior', category: 'Junior Short', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '10:10', exit: '10:30' }, dressingRoom: { name: 'HOME', enter: '10:38', rinkside: '10:58', exit: '11:30' } } },
+      { id: 'f_p2', day: 'Friday', startTime: '11:10', endTime: '11:20', duration: '10:00', team: 'Magna', category: 'Pre Novice', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '10:20', exit: '10:40' }, dressingRoom: { name: 'AWAY', enter: '10:48', rinkside: '11:08', exit: '11:40' } } },
+      { id: 'f_p3', day: 'Friday', startTime: '11:20', endTime: '11:30', duration: '10:00', team: 'Aries', category: 'Pre Novice', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '10:35', exit: '10:55' }, dressingRoom: { name: '1', enter: '10:58', rinkside: '11:18', exit: '11:50' } } },
+      { id: 'f_p4', day: 'Friday', startTime: '11:30', endTime: '11:40', duration: '10:00', team: 'Icicles Senior', category: 'Senior Short', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '10:45', exit: '11:05' }, dressingRoom: { name: '2', enter: '11:08', rinkside: '11:28', exit: '12:00' } } },
+      { id: 'f_b1', day: 'Friday', startTime: '11:40', endTime: '11:55', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 'f_p5', day: 'Friday', startTime: '11:55', endTime: '12:05', duration: '10:00', team: 'Presto', category: 'Pre Juvenile', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '11:05', exit: '11:25' }, dressingRoom: { name: '3', enter: '11:33', rinkside: '11:53', exit: '12:25' } } },
+      { id: 'f_p6', day: 'Friday', startTime: '12:05', endTime: '12:15', duration: '10:00', team: 'Ice Gems', category: 'Juvenile', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '11:15', exit: '11:35' }, dressingRoom: { name: '4', enter: '11:43', rinkside: '12:03', exit: '12:35' } } },
+      { id: 'f_p7', day: 'Friday', startTime: '12:15', endTime: '12:25', duration: '10:00', team: 'SPICE Sparkles', category: 'Inclusive', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '11:30', exit: '11:50' }, dressingRoom: { name: 'PARTY', enter: '', rinkside: '12:13', exit: '' } } },
+      { id: 'f_p8', day: 'Friday', startTime: '12:25', endTime: '12:35', duration: '10:00', team: 'SPICE Crystals', category: 'Inclusive', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '11:40', exit: '12:00' }, dressingRoom: { name: 'PARTY', enter: '', rinkside: '12:23', exit: '' } } },
+      { id: 'f_b2', day: 'Friday', startTime: '12:35', endTime: '12:50', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 'f_p9', day: 'Friday', startTime: '12:50', endTime: '13:00', duration: '10:00', team: 'Novus', category: 'Beginner', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '12:00', exit: '12:20' }, dressingRoom: { name: 'AWAY', enter: '12:28', rinkside: '12:48', exit: '13:20' } } },
+      { id: 'f_p10', day: 'Friday', startTime: '13:00', endTime: '13:10', duration: '10:00', team: 'Elua', category: 'Beginner', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '12:10', exit: '12:30' }, dressingRoom: { name: '1', enter: '12:38', rinkside: '12:58', exit: '13:30' } } },
+      { id: 'f_p11', day: 'Friday', startTime: '13:10', endTime: '13:20', duration: '10:00', team: 'BSA Reflections', category: 'Beginner', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '12:25', exit: '12:45' }, dressingRoom: { name: '2', enter: '12:48', rinkside: '13:08', exit: '13:40' } } },
+      { id: 'f_p12', day: 'Friday', startTime: '13:20', endTime: '13:30', duration: '10:00', team: 'Stardust', category: 'Beginner', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '12:35', exit: '12:55' }, dressingRoom: { name: 'HOME', enter: '12:58', rinkside: '13:18', exit: '13:50' } } },
+      { id: 'f_b3', day: 'Friday', startTime: '13:30', endTime: '13:45', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 'f_p13', day: 'Friday', startTime: '13:45', endTime: '13:55', duration: '10:00', team: 'Ignis', category: 'Basic Novice', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '12:55', exit: '13:15' }, dressingRoom: { name: 'AWAY', enter: '13:23', rinkside: '13:43', exit: '14:15' } } },
+      { id: 'f_p14', day: 'Friday', startTime: '13:55', endTime: '14:05', duration: '10:00', team: 'Virgo', category: 'Basic Novice', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '13:05', exit: '13:25' }, dressingRoom: { name: '3', enter: '13:33', rinkside: '13:53', exit: '14:25' } } },
+      { id: 'f_p15', day: 'Friday', startTime: '14:05', endTime: '14:15', duration: '10:00', team: 'Phoenix', category: 'Basic Novice', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '13:20', exit: '13:40' }, dressingRoom: { name: 'HOME', enter: '13:43', rinkside: '14:03', exit: '14:35' } } },
+      { id: 'f_p16', day: 'Friday', startTime: '14:15', endTime: '14:25', duration: '10:00', team: 'Ice Stars', category: 'Basic Novice', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '13:30', exit: '13:50' }, dressingRoom: { name: '4', enter: '13:53', rinkside: '14:13', exit: '14:45' } } },
+      { id: 'f_b4', day: 'Friday', startTime: '14:25', endTime: '15:10', duration: '45:00', team: 'Tea Break & Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      
+      // FRIDAY COMPETITION
+      { id: 'f_c1', day: 'Friday', startTime: '15:10', endTime: '15:16', duration: '06:00', team: 'Icicles Junior', category: 'Junior Short', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '14:09', exit: '14:29' }, dressingRoom: { name: 'HOME', enter: '14:48', rinkside: '15:08', exit: '15:38' } } },
+      { id: 'f_pr1', day: 'Friday', startTime: '15:16', endTime: '15:18', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 'f_c2', day: 'Friday', startTime: '15:18', endTime: '15:24', duration: '06:00', team: 'Magna', category: 'Pre Novice', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '14:15', exit: '14:35' }, dressingRoom: { name: 'AWAY', enter: '14:56', rinkside: '15:16', exit: '15:44' } } },
+      { id: 'f_c3', day: 'Friday', startTime: '15:24', endTime: '15:30', duration: '06:00', team: 'Aries', category: 'Pre Novice', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '14:31', exit: '14:51' }, dressingRoom: { name: '1', enter: '15:02', rinkside: '15:22', exit: '15:52' } } },
+      { id: 'f_pr2', day: 'Friday', startTime: '15:30', endTime: '15:32', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 'f_c4', day: 'Friday', startTime: '15:32', endTime: '15:38', duration: '06:00', team: 'Icicles Senior', category: 'Senior Short', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '14:37', exit: '14:57' }, dressingRoom: { name: '2', enter: '15:10', rinkside: '15:30', exit: '15:58' } } },
+      { id: 'f_b5', day: 'Friday', startTime: '15:38', endTime: '15:53', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 'f_c5', day: 'Friday', startTime: '15:53', endTime: '15:59', duration: '06:00', team: 'Presto', category: 'Pre Juvenile', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '14:53', exit: '15:13' }, dressingRoom: { name: '3', enter: '15:31', rinkside: '15:51', exit: '16:21' } } },
+      { id: 'f_pr3', day: 'Friday', startTime: '15:59', endTime: '16:01', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 'f_c6', day: 'Friday', startTime: '16:01', endTime: '16:07', duration: '06:00', team: 'Ice Gems', category: 'Juvenile', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '14:59', exit: '15:19' }, dressingRoom: { name: '4', enter: '15:39', rinkside: '15:59', exit: '16:29' } } },
+      { id: 'f_pr4', day: 'Friday', startTime: '16:07', endTime: '16:09', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 'f_c7', day: 'Friday', startTime: '16:09', endTime: '16:15', duration: '06:00', team: 'SPICE Sparkles', category: 'Inclusive', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '15:15', exit: '15:35' }, dressingRoom: { name: 'PARTY', enter: '', rinkside: '16:07', exit: '' } } },
+      { id: 'f_c8', day: 'Friday', startTime: '16:15', endTime: '16:21', duration: '06:00', team: 'SPICE Crystals', category: 'Inclusive', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '15:21', exit: '15:41' }, dressingRoom: { name: 'PARTY', enter: '', rinkside: '16:13', exit: '' } } },
+      { id: 'f_b6', day: 'Friday', startTime: '16:21', endTime: '16:36', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 'f_c9', day: 'Friday', startTime: '16:36', endTime: '16:42', duration: '06:00', team: 'Novus', category: 'Beginner', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '15:37', exit: '15:57' }, dressingRoom: { name: 'AWAY', enter: '16:14', rinkside: '16:34', exit: '17:02' } } },
+      { id: 'f_c10', day: 'Friday', startTime: '16:42', endTime: '16:48', duration: '06:00', team: 'Elua', category: 'Beginner', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '15:43', exit: '16:03' }, dressingRoom: { name: '1', enter: '16:20', rinkside: '16:40', exit: '17:08' } } },
+      { id: 'f_c11', day: 'Friday', startTime: '16:48', endTime: '16:54', duration: '06:00', team: 'BSA Reflections', category: 'Beginner', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '15:59', exit: '16:19' }, dressingRoom: { name: '2', enter: '16:26', rinkside: '16:46', exit: '17:14' } } },
+      { id: 'f_c12', day: 'Friday', startTime: '16:54', endTime: '17:00', duration: '06:00', team: 'Stardust', category: 'Beginner', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '16:05', exit: '16:25' }, dressingRoom: { name: 'HOME', enter: '16:32', rinkside: '16:52', exit: '17:20' } } },
+      { id: 'f_b7', day: 'Friday', startTime: '17:00', endTime: '17:15', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 'f_c13', day: 'Friday', startTime: '17:15', endTime: '17:21', duration: '06:00', team: 'Ignis', category: 'Basic Novice', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '16:21', exit: '16:41' }, dressingRoom: { name: 'AWAY', enter: '16:53', rinkside: '17:13', exit: '17:41' } } },
+      { id: 'f_c14', day: 'Friday', startTime: '17:21', endTime: '17:27', duration: '06:00', team: 'Virgo', category: 'Basic Novice', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '16:27', exit: '16:47' }, dressingRoom: { name: '3', enter: '16:59', rinkside: '17:19', exit: '17:47' } } },
+      { id: 'f_c15', day: 'Friday', startTime: '17:27', endTime: '17:33', duration: '06:00', team: 'Phoenix', category: 'Basic Novice', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '16:43', exit: '17:03' }, dressingRoom: { name: 'HOME', enter: '17:05', rinkside: '17:25', exit: '17:53' } } },
+      { id: 'f_c16', day: 'Friday', startTime: '17:33', endTime: '17:39', duration: '06:00', team: 'Ice Stars', category: 'Basic Novice', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '16:49', exit: '17:09' }, dressingRoom: { name: '4', enter: '17:11', rinkside: '17:31', exit: '17:59' } } },
+      { id: 'f_end', day: 'Friday', startTime: '17:39', endTime: '17:45', duration: '06:00', team: 'END OF DAY 1', category: '', type: EventType.BREAK },
+      { id: 'f_pres', day: 'Friday', startTime: '17:45', endTime: '18:30', duration: '45:00', team: 'Presentation', category: 'Beginner, Pre Novice, Pre Juvenile, Juvenile, Inclusive & Basic Novice', type: EventType.PRESENTATION, isMajorBreak: true },
+
+      // SATURDAY
+      { id: 's_p1', day: 'Saturday', startTime: '08:00', endTime: '08:11', duration: '11:00', team: 'Ice Unite', category: 'Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '07:15', exit: '07:35' }, dressingRoom: { name: '1', enter: '07:38', rinkside: '07:58', exit: '08:31' } } },
+      { id: 's_p2', day: 'Saturday', startTime: '08:11', endTime: '08:22', duration: '11:00', team: 'Gemini', category: 'Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '07:26', exit: '07:46' }, dressingRoom: { name: '2', enter: '07:49', rinkside: '08:09', exit: '08:42' } } },
+      { id: 's_p3', day: 'Saturday', startTime: '08:22', endTime: '08:33', duration: '11:00', team: 'Northern Starfire', category: 'Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '07:37', exit: '07:57' }, dressingRoom: { name: '3', enter: '08:00', rinkside: '08:20', exit: '08:53' } } },
+      { id: 's_b1', day: 'Saturday', startTime: '08:33', endTime: '08:48', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_p4', day: 'Saturday', startTime: '08:48', endTime: '08:59', duration: '11:00', team: 'Northern Starlets', category: 'Pre Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '08:03', exit: '08:23' }, dressingRoom: { name: '4', enter: '08:26', rinkside: '08:46', exit: '09:19' } } },
+      { id: 's_p5', day: 'Saturday', startTime: '08:59', endTime: '09:10', duration: '11:00', team: 'BSA Silhouettes', category: 'Pre Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '08:14', exit: '08:34' }, dressingRoom: { name: 'HOME', enter: '08:37', rinkside: '08:57', exit: '09:30' } } },
+      { id: 's_p6', day: 'Saturday', startTime: '09:10', endTime: '09:21', duration: '11:00', team: 'Amici', category: 'Pre Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '08:25', exit: '08:45' }, dressingRoom: { name: 'AWAY', enter: '08:48', rinkside: '09:08', exit: '09:41' } } },
+      { id: 's_p7', day: 'Saturday', startTime: '09:21', endTime: '09:32', duration: '11:00', team: 'Ohana', category: 'Pre Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '08:36', exit: '08:56' }, dressingRoom: { name: '1', enter: '08:59', rinkside: '09:19', exit: '09:52' } } },
+      { id: 's_p8', day: 'Saturday', startTime: '09:32', endTime: '09:43', duration: '11:00', team: 'Ice Infinity', category: 'Pre Mixed Age', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '08:47', exit: '09:07' }, dressingRoom: { name: '2', enter: '09:10', rinkside: '09:30', exit: '10:03' } } },
+      { id: 's_b2', day: 'Saturday', startTime: '09:43', endTime: '09:58', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_p9', day: 'Saturday', startTime: '09:58', endTime: '10:08', duration: '10:00', team: 'Orion', category: 'Advanced Adult 1', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '09:10', exit: '09:30' }, dressingRoom: { name: '3', enter: '09:36', rinkside: '09:56', exit: '10:28' } } },
+      { id: 's_p10', day: 'Saturday', startTime: '10:08', endTime: '10:18', duration: '10:00', team: 'Apollo', category: 'Adult', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '09:20', exit: '09:40' }, dressingRoom: { name: '4', enter: '09:46', rinkside: '10:06', exit: '10:38' } } },
+      { id: 's_p11', day: 'Saturday', startTime: '10:18', endTime: '10:28', duration: '10:00', team: 'Fusion', category: 'Adult', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '09:33', exit: '09:53' }, dressingRoom: { name: 'HOME', enter: '09:56', rinkside: '10:16', exit: '10:48' } } },
+      { id: 's_p12', day: 'Saturday', startTime: '10:28', endTime: '10:38', duration: '10:00', team: 'Majestikal', category: 'Adult', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '09:43', exit: '10:03' }, dressingRoom: { name: 'AWAY', enter: '10:06', rinkside: '10:26', exit: '10:58' } } },
+      { id: 's_b3', day: 'Saturday', startTime: '10:38', endTime: '10:53', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_p13', day: 'Saturday', startTime: '10:53', endTime: '11:03', duration: '10:00', team: 'BSA Shadows', category: 'Adult', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '10:05', exit: '10:25' }, dressingRoom: { name: '1', enter: '10:31', rinkside: '10:51', exit: '11:23' } } },
+      { id: 's_p14', day: 'Saturday', startTime: '11:03', endTime: '11:13', duration: '10:00', team: 'Perpetuum', category: 'Adult', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '10:18', exit: '10:38' }, dressingRoom: { name: '2', enter: '10:41', rinkside: '11:01', exit: '11:33' } } },
+      { id: 's_p15', day: 'Saturday', startTime: '11:13', endTime: '11:24', duration: '11:00', team: 'Unum', category: 'Junior B', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '10:28', exit: '10:48' }, dressingRoom: { name: '3', enter: '10:51', rinkside: '11:11', exit: '11:44' } } },
+      { id: 's_p16', day: 'Saturday', startTime: '11:24', endTime: '11:35', duration: '11:00', team: 'Phoenix Gold', category: 'Junior B', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '10:39', exit: '10:59' }, dressingRoom: { name: 'HOME', enter: '11:02', rinkside: '11:22', exit: '11:55' } } },
+      { id: 's_b4', day: 'Saturday', startTime: '11:35', endTime: '11:50', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_p17', day: 'Saturday', startTime: '11:50', endTime: '12:01', duration: '11:00', team: 'Icicles Junior', category: 'Junior Free 1', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '11:05', exit: '11:25' }, dressingRoom: { name: 'AWAY', enter: '11:28', rinkside: '11:48', exit: '12:21' } } },
+      { id: 's_p18', day: 'Saturday', startTime: '12:01', endTime: '12:13', duration: '12:00', team: 'Aura', category: 'Senior B 1', type: EventType.PRACTICE, logistics: { offIce: { area: 'B', enter: '11:16', exit: '11:36' }, dressingRoom: { name: 'HOME', enter: '11:39', rinkside: '11:59', exit: '12:33' } } },
+      { id: 's_p19', day: 'Saturday', startTime: '12:13', endTime: '12:25', duration: '12:00', team: 'Icicles Senior', category: 'Senior Free 1', type: EventType.PRACTICE, logistics: { offIce: { area: 'A', enter: '11:28', exit: '11:48' }, dressingRoom: { name: '4', enter: '11:51', rinkside: '12:11', exit: '12:00' } } },
+      { id: 's_b5', day: 'Saturday', startTime: '12:25', endTime: '13:30', duration: '65:00', team: 'Lunch & Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_c1', day: 'Saturday', startTime: '13:30', endTime: '13:38', duration: '08:00', team: 'Ice Unite', category: 'Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '12:40', exit: '13:00' }, dressingRoom: { name: '1', enter: '13:08', rinkside: '13:28', exit: '13:58' } } },
+      { id: 's_c2', day: 'Saturday', startTime: '13:38', endTime: '13:46', duration: '08:00', team: 'Gemini', category: 'Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '12:48', exit: '13:08' }, dressingRoom: { name: '2', enter: '13:16', rinkside: '13:36', exit: '14:06' } } },
+      { id: 's_c3', day: 'Saturday', startTime: '13:46', endTime: '13:54', duration: '08:00', team: 'Northern Starfire', category: 'Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '13:02', exit: '13:22' }, dressingRoom: { name: '3', enter: '13:24', rinkside: '13:44', exit: '14:14' } } },
+      { id: 's_b6', day: 'Saturday', startTime: '13:54', endTime: '14:09', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_c4', day: 'Saturday', startTime: '14:09', endTime: '14:17', duration: '08:00', team: 'Northern Starlets', category: 'Pre Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '13:12', exit: '13:32' }, dressingRoom: { name: '4', enter: '13:47', rinkside: '14:07', exit: '14:37' } } },
+      { id: 's_c5', day: 'Saturday', startTime: '14:17', endTime: '14:25', duration: '08:00', team: 'BSA Silhouettes', category: 'Pre Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '13:26', exit: '13:46' }, dressingRoom: { name: 'HOME', enter: '13:55', rinkside: '14:15', exit: '14:45' } } },
+      { id: 's_c6', day: 'Saturday', startTime: '14:25', endTime: '14:33', duration: '08:00', team: 'Amici', category: 'Pre Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '13:34', exit: '13:54' }, dressingRoom: { name: 'AWAY', enter: '14:03', rinkside: '14:23', exit: '14:53' } } },
+      { id: 's_c7', day: 'Saturday', startTime: '14:33', endTime: '14:41', duration: '08:00', team: 'Ohana', category: 'Pre Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '13:48', exit: '14:08' }, dressingRoom: { name: '1', enter: '14:11', rinkside: '14:31', exit: '15:01' } } },
+      { id: 's_c8', day: 'Saturday', startTime: '14:41', endTime: '14:49', duration: '08:00', team: 'Ice Infinity', category: 'Pre Mixed Age', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '13:56', exit: '14:16' }, dressingRoom: { name: '2', enter: '14:19', rinkside: '14:39', exit: '15:09' } } },
+      { id: 's_b7', day: 'Saturday', startTime: '14:49', endTime: '15:04', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_c9', day: 'Saturday', startTime: '15:04', endTime: '15:10', duration: '06:00', team: 'Orion', category: 'Advanced Adult 1', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '14:19', exit: '14:39' }, dressingRoom: { name: '3', enter: '14:42', rinkside: '15:02', exit: '15:30' } } },
+      { id: 's_pr1', day: 'Saturday', startTime: '15:10', endTime: '15:22', duration: '12:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 's_c10', day: 'Saturday', startTime: '15:22', endTime: '15:28', duration: '06:00', team: 'Apollo', category: 'Adult', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '14:27', exit: '14:47' }, dressingRoom: { name: 'HOME', enter: '15:00', rinkside: '15:20', exit: '15:48' } } },
+      { id: 's_c11', day: 'Saturday', startTime: '15:28', endTime: '15:34', duration: '06:00', team: 'Fusion', category: 'Adult', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '14:41', exit: '15:01' }, dressingRoom: { name: 'AWAY', enter: '15:06', rinkside: '15:26', exit: '15:54' } } },
+      { id: 's_c12', day: 'Saturday', startTime: '15:34', endTime: '15:40', duration: '06:00', team: 'Majestikal', category: 'Adult', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '14:49', exit: '15:09' }, dressingRoom: { name: '4', enter: '15:12', rinkside: '15:32', exit: '16:00' } } },
+      { id: 's_b8', day: 'Saturday', startTime: '15:40', endTime: '15:55', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_c13', day: 'Saturday', startTime: '15:55', endTime: '16:01', duration: '06:00', team: 'BSA Shadows', category: 'Adult', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '15:03', exit: '15:23' }, dressingRoom: { name: '1', enter: '15:33', rinkside: '15:53', exit: '16:21' } } },
+      { id: 's_c14', day: 'Saturday', startTime: '16:01', endTime: '16:07', duration: '06:00', team: 'Perpetuum', category: 'Adult', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '15:11', exit: '15:31' }, dressingRoom: { name: '2', enter: '15:39', rinkside: '15:59', exit: '16:27' } } },
+      { id: 's_pr2', day: 'Saturday', startTime: '16:07', endTime: '16:09', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 's_c15', day: 'Saturday', startTime: '16:09', endTime: '16:17', duration: '08:00', team: 'Unum', category: 'Junior B', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '15:25', exit: '15:45' }, dressingRoom: { name: '3', enter: '15:47', rinkside: '16:07', exit: '16:37' } } },
+      { id: 's_c16', day: 'Saturday', startTime: '16:17', endTime: '16:25', duration: '08:00', team: 'Phoenix Gold', category: 'Junior B', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '15:33', exit: '15:53' }, dressingRoom: { name: 'HOME', enter: '15:55', rinkside: '16:15', exit: '16:45' } } },
+      { id: 's_b9', day: 'Saturday', startTime: '16:25', endTime: '16:40', duration: '15:00', team: 'Resurface', category: '', type: EventType.BREAK, isMajorBreak: true },
+      { id: 's_c17', day: 'Saturday', startTime: '16:40', endTime: '16:48', duration: '08:00', team: 'Icicles Junior', category: 'Junior Free', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '15:55', exit: '16:15' }, dressingRoom: { name: 'AWAY', enter: '16:18', rinkside: '16:38', exit: '17:10' } } },
+      { id: 's_pr3', day: 'Saturday', startTime: '16:48', endTime: '16:50', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 's_c18', day: 'Saturday', startTime: '16:50', endTime: '16:58', duration: '08:00', team: 'Aura', category: 'Senior B', type: EventType.COMPETITION, logistics: { offIce: { area: 'B', enter: '16:05', exit: '16:25' }, dressingRoom: { name: 'HOME', enter: '16:28', rinkside: '16:48', exit: '17:20' } } },
+      { id: 's_pr4', day: 'Saturday', startTime: '16:58', endTime: '17:00', duration: '02:00', team: 'PANEL RESET', category: '', type: EventType.PANEL_RESET },
+      { id: 's_c19', day: 'Saturday', startTime: '17:00', endTime: '17:08', duration: '08:00', team: 'Icicles Senior', category: 'Senior Free', type: EventType.COMPETITION, logistics: { offIce: { area: 'A', enter: '16:15', exit: '16:35' }, dressingRoom: { name: '4', enter: '16:38', rinkside: '16:58', exit: '17:30' } } },
+      { id: 's_end1', day: 'Saturday', startTime: '17:08', endTime: '17:20', duration: '12:00', team: 'End of Competition', category: '', type: EventType.BREAK },
+      { id: 's_pres1', day: 'Saturday', startTime: '17:20', endTime: '18:20', duration: '60:00', team: 'Presentations', category: '', type: EventType.PRESENTATION, isMajorBreak: true },
+    ];
+
+    // --- components/LiveIndicator.tsx ---
+    const LiveIndicator = () => {
+      return (
+        <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+            </span>
+            <span className="text-xs font-bold text-rose-600 uppercase tracking-wider">Live</span>
+        </div>
+      );
+    };
+
+    // --- components/EventCard.tsx ---
+    const EventCard = ({ 
+        item, 
+        currentMinutes, 
+        delayMinutes, 
+        isFavorite, 
+        isHomeTeam,
+        onToggleFavorite,
+        onSetHomeTeam,
+        isLast 
+    }) => {
+      const [isExpanded, setIsExpanded] = useState(false);
+
+      const originalStartMinutes = useMemo(() => {
+          return timeToMinutes(item.startTime);
+      }, [item.startTime]);
+
+      const originalEndMinutes = useMemo(() => {
+          return timeToMinutes(item.endTime);
+      }, [item.endTime]);
+
+      const adjustedStart = originalStartMinutes + delayMinutes;
+      const adjustedEnd = originalEndMinutes + delayMinutes;
+      
+      const status = getEventStatus(adjustedStart, adjustedEnd, currentMinutes);
+      const relativeTime = getRelativeTimeText(adjustedStart, currentMinutes);
+
+      const isBreak = item.type === EventType.BREAK || item.type === EventType.PANEL_RESET || item.type === EventType.PRESENTATION;
+      const isCompetition = item.type === EventType.COMPETITION;
+      
+      let cardClasses = "relative flex-1 rounded-lg border transition-all duration-300 overflow-hidden ";
+      
+      if (status === 'live') {
+        cardClasses += "bg-white border-blue-400 shadow-lg shadow-blue-100/50 ring-1 ring-blue-100 ";
+      } else if (status === 'completed') {
+        cardClasses += "bg-slate-50/50 border-slate-100 opacity-60 grayscale-[0.8] hover:grayscale-0 hover:opacity-100 ";
+      } else {
+        cardClasses += "bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm ";
+        if (isHomeTeam) cardClasses += "border-blue-200 bg-blue-50/30 ";
+        else if (isFavorite) cardClasses += "border-amber-200 bg-amber-50/30 ";
+      }
+
+      if (isBreak) {
+        return (
+          <div className="flex gap-3 relative group">
+            <div className="flex flex-col items-center w-10 shrink-0">
+                <div className={`w-px grow ${isLast ? 'bg-transparent' : 'bg-slate-200'}`}></div>
+            </div>
+            
+            <div className={`flex-1 flex items-center justify-between py-2 px-3 my-1 rounded border border-dashed transition-colors text-xs
+              ${status === 'live' ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-50/80 text-slate-400 border-slate-200'}`}>
+                <div className="flex items-center gap-2">
+                    {status === 'live' && <div className="animate-pulse w-1.5 h-1.5 rounded-full bg-amber-500"></div>}
+                    <span className="font-medium">{item.team}</span>
+                </div>
+                <span className="font-mono opacity-70">{minutesToTime(adjustedStart)} - {minutesToTime(adjustedEnd)}</span>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex gap-3 relative group">
+          <div className="flex flex-col items-center w-10 shrink-0 pt-3">
+             <div className={`w-2.5 h-2.5 rounded-full border-2 z-10 transition-colors duration-300 ${
+                 status === 'live' ? 'bg-blue-500 border-blue-100 ring-2 ring-blue-50' : 
+                 status === 'completed' ? 'bg-slate-300 border-slate-100' : 
+                 isHomeTeam ? 'bg-blue-100 border-blue-400' :
+                 'bg-white border-slate-300 group-hover:border-blue-400'
+             }`}></div>
+             <div className={`w-px grow mt-1 ${isLast ? 'bg-gradient-to-b from-slate-200 to-transparent' : 'bg-slate-200'}`}></div>
+          </div>
+
+          <div className={cardClasses}>
+            <div className="p-2.5 px-3 cursor-pointer" onClick={() => item.logistics && setIsExpanded(!isExpanded)}>
+                <div className="flex justify-between items-start relative">
+                
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.id); }}
+                    className={`absolute -top-1 -right-1 p-1.5 rounded-bl-lg rounded-tr-lg transition-all z-20 ${
+                        isFavorite ? 'text-amber-400 bg-amber-50 hover:bg-amber-100' : 'text-slate-200 hover:text-amber-300 hover:bg-slate-50'
+                    }`}
+                >
+                    <Star size={14} fill={isFavorite ? "currentColor" : "none"} />
+                </button>
+                
+                {isHomeTeam && (
+                   <div className="absolute -top-1 right-7 p-1.5 text-blue-500 z-20">
+                       <Home size={14} fill="currentColor" />
+                   </div>
+                )}
+
+                <div className="flex gap-3 w-full items-center">
+                    <div className="flex flex-col min-w-[50px] shrink-0">
+                    <div className={`text-sm font-bold font-mono tracking-tight ${status === 'live' ? 'text-blue-700' : 'text-slate-700'}`}>
+                        {minutesToTime(adjustedStart)}
+                    </div>
+                    
+                    <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                        <Clock size={10} />
+                        <span>{formatDuration(item.duration)}</span>
+                    </div>
+
+                    {delayMinutes !== 0 && status !== 'completed' && (
+                        <div className={`text-[9px] mt-0.5 font-bold font-mono px-1 rounded w-fit ${
+                            delayMinutes > 0 ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'
+                        }`}>
+                            {delayMinutes > 0 ? `+${delayMinutes}` : `${delayMinutes}`}
+                        </div>
+                    )}
+                    </div>
+
+                    <div className="flex-1 pr-8 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                        {status === 'live' ? (
+                            <LiveIndicator /> 
+                        ) : (status === 'upcoming' && relativeTime) ? (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-1.5 rounded-sm truncate">
+                                {relativeTime}
+                            </span>
+                        ) : null}
+                    </div>
+                    
+                    <h3 className={`text-sm font-bold leading-tight truncate ${status === 'live' ? 'text-slate-900' : 'text-slate-800'}`}>
+                        {item.team}
+                    </h3>
+                    
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border truncate max-w-full ${
+                            isCompetition 
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
+                            : 'bg-cyan-50 text-cyan-700 border-cyan-100'
+                        }`}>
+                            {isCompetition ? <Trophy size={10} className="mr-1 shrink-0"/> : <Users size={10} className="mr-1 shrink-0"/>}
+                            {item.category}
+                        </span>
+
+                        {!isExpanded && item.logistics && (
+                            <div className="flex gap-1">
+                                 <span className="text-[9px] text-slate-400 bg-slate-50 px-1 rounded border border-slate-100 flex items-center gap-0.5">
+                                    <MapPin size={8} />
+                                    {item.logistics.dressingRoom?.name}
+                                 </span>
+                            </div>
+                        )}
+                    </div>
+                    </div>
+                </div>
+
+                </div>
+            </div>
+
+            {isExpanded && item.logistics && (
+                <div className="px-3 pb-3 pt-0 animate-in slide-in-from-top-1 fade-in duration-200">
+                    <div className="bg-slate-50 rounded border border-slate-100 p-2 mb-2">
+                        <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Logistics Timeline</h4>
+                        <div className="space-y-2">
+                            
+                            <div className="flex items-center gap-3 text-xs">
+                                <div className="w-12 font-mono text-slate-500 text-right shrink-0">{item.logistics.offIce?.enter}</div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></div>
+                                <div className="flex-1 text-slate-700 flex items-center gap-1.5">
+                                    <div className="p-1 bg-white rounded border border-slate-200 text-slate-400">
+                                        <Users size={10} />
+                                    </div>
+                                    <span>Off Ice Area <strong className="text-slate-900">{item.logistics.offIce?.area}</strong></span>
+                                </div>
+                            </div>
+
+                            <div className="pl-[52px] -my-1">
+                                <div className="w-px h-3 bg-slate-200"></div>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs">
+                                <div className="w-12 font-mono text-slate-500 text-right shrink-0">{item.logistics.dressingRoom?.enter}</div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></div>
+                                <div className="flex-1 text-slate-700 flex items-center gap-1.5">
+                                    <div className="p-1 bg-white rounded border border-slate-200 text-slate-400">
+                                        <Shirt size={10} />
+                                    </div>
+                                    <span>Dressing Room <strong className="text-slate-900">{item.logistics.dressingRoom?.name}</strong></span>
+                                </div>
+                            </div>
+
+                             <div className="pl-[52px] -my-1">
+                                <div className="w-px h-3 bg-slate-200"></div>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs">
+                                <div className="w-12 font-mono text-slate-500 text-right shrink-0">{item.logistics.dressingRoom?.rinkside}</div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></div>
+                                <div className="flex-1 text-slate-700 flex items-center gap-1.5">
+                                    <div className="p-1 bg-white rounded border border-slate-200 text-slate-400">
+                                        <ArrowRight size={10} />
+                                    </div>
+                                    <span>Rinkside Standby</span>
+                                </div>
+                            </div>
+
+                             <div className="pl-[52px] -my-1">
+                                <div className="w-px h-3 bg-slate-200"></div>
+                            </div>
+
+                             <div className="flex items-center gap-3 text-xs">
+                                <div className="w-12 font-mono text-blue-600 font-bold text-right shrink-0">{minutesToTime(adjustedStart)}</div>
+                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 shadow-[0_0_4px_rgba(59,130,246,0.6)]"></div>
+                                <div className="flex-1 text-blue-900 font-medium flex items-center gap-1.5">
+                                    <div className="p-1 bg-blue-50 rounded border border-blue-100 text-blue-500">
+                                        <Trophy size={10} />
+                                    </div>
+                                    <span>Competition / Practice Start</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {!isHomeTeam && (
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSetHomeTeam(item.team);
+                            }}
+                            className="w-full py-2 text-[10px] font-bold uppercase tracking-wide text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Home size={12} />
+                            Set as Home Team
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {status === 'live' && (
+                 <div className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-100 rounded-b-lg overflow-hidden pointer-events-none">
+                    <div 
+                      className="h-full bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.5)] animate-pulse"
+                    ></div>
+                 </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // --- components/StatusDashboard.tsx ---
+    const StatusDashboard = ({ schedule, currentMinutes, delayMinutes }) => {
+      
+      const { currentEvent, nextEvent, progress } = useMemo(() => {
+        const getTimes = (item) => {
+            const [h, m] = item.startTime.split(':').map(Number);
+            const start = h * 60 + m + delayMinutes;
+            const [eh, em] = item.endTime.split(':').map(Number);
+            const end = eh * 60 + em + delayMinutes;
+            return { start, end };
+        };
+
+        const current = schedule.find(item => {
+            const { start, end } = getTimes(item);
+            return currentMinutes >= start && currentMinutes < end;
+        });
+
+        const next = schedule.find(item => {
+            const { start } = getTimes(item);
+            return start > currentMinutes && item.type !== 'Panel Reset' && item.team !== 'Resurface';
+        });
+        
+        const competitionItems = schedule.filter(i => i.type !== 'Break' && i.type !== 'Panel Reset');
+        const completed = competitionItems.filter(item => {
+             const { end } = getTimes(item);
+             return currentMinutes >= end;
+        }).length;
+
+        return { 
+            currentEvent: current, 
+            nextEvent: next,
+            progress: Math.round((completed / competitionItems.length) * 100),
+        };
+      }, [schedule, currentMinutes, delayMinutes]);
+
+      return (
+        <div className="space-y-3 mb-6">
+          
+          {delayMinutes > 0 && (
+              <div className="bg-rose-50 border border-rose-100 rounded-lg p-2.5 flex items-center gap-2.5 animate-pulse">
+                  <AlertTriangle className="text-rose-500 shrink-0" size={16} />
+                  <div className="text-xs text-rose-800 font-medium">
+                      Currently running <span className="font-bold">{delayMinutes}m behind schedule</span>.
+                  </div>
+              </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl p-4 text-white shadow-lg shadow-slate-900/10 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-5 transform group-hover:scale-110 transition-transform duration-700">
+                    <Play size={100} />
+                </div>
+                <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl"></div>
+                
+                <div className="relative z-10">
+                <div className="flex justify-between items-start mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shadow-[0_0_6px_rgba(96,165,250,0.8)]" />
+                        On Ice Now
+                    </span>
+                    
+                    {currentEvent && (
+                        <div className="text-right">
+                             <div className="text-2xl font-mono font-bold tracking-tighter text-white leading-none">
+                                {minutesToTime(currentMinutes)}
+                             </div>
+                        </div>
+                    )}
+                </div>
+                
+                {currentEvent ? (
+                    <div className="mt-1">
+                        <h2 className="text-xl font-bold leading-none mb-1 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-300 truncate">
+                            {currentEvent.team}
+                        </h2>
+                        <p className="text-blue-200 text-xs font-medium mb-3 flex items-center gap-1.5">
+                            <span className="w-0.5 h-3 bg-blue-500 rounded-full"></span>
+                            {currentEvent.category}
+                        </p>
+                        
+                        <div className="inline-flex items-center gap-2 bg-slate-800/80 backdrop-blur-sm border border-slate-700 px-3 py-1.5 rounded-lg">
+                            <Clock size={12} className="text-slate-400"/>
+                            <span className="text-xs font-mono text-white">
+                                Ends {minutesToTime(timeToMinutes(currentEvent.endTime) + delayMinutes)}
+                            </span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="h-20 flex flex-col justify-center items-center text-center space-y-1">
+                        <p className="text-slate-300 font-medium text-sm">Ice is currently clear</p>
+                        <p className="text-slate-500 text-[10px]">Next event starting soon</p>
+                    </div>
+                )}
+                </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative flex flex-col justify-between">
+                
+                <div className="mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                            <ChevronRight size={12} /> Up Next
+                        </span>
+                    </div>
+
+                    {nextEvent ? (
+                        <div className="group cursor-pointer transition-all hover:bg-slate-50 -mx-2 p-2 rounded-lg">
+                            <div className="flex justify-between items-center">
+                                <div className="min-w-0">
+                                    <h2 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors truncate">
+                                        {nextEvent.team}
+                                    </h2>
+                                    <p className="text-slate-500 text-[10px] font-medium truncate">{nextEvent.category}</p>
+                                </div>
+                                <div className="text-right shrink-0 pl-2">
+                                    <span className="block text-sm font-bold font-mono text-slate-700">
+                                        {minutesToTime(timeToMinutes(nextEvent.startTime) + delayMinutes)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-slate-400 text-xs italic">No more events scheduled.</p>
+                    )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100">
+                     <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1.5">
+                         <span className="flex items-center gap-1"><CheckCircle size={10}/> Progress</span>
+                         <span className="font-bold">{progress}%</span>
+                     </div>
+                     <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                         <div 
+                            className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full transition-all duration-1000" 
+                            style={{ width: `${progress}%` }}
+                         ></div>
+                     </div>
+                </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // --- components/ControlPanel.tsx ---
+    const ControlPanel = ({ 
+        delayMinutes, 
+        setDelayMinutes, 
+        searchTerm, 
+        setSearchTerm,
+        currentTime,
+        setCurrentTime,
+        isLiveMode,
+        setIsLiveMode,
+        selectedDay,
+        setSelectedDay
+    }) => {
+      const [isOpen, setIsOpen] = useState(false);
+      const [isAdminMode, setIsAdminMode] = useState(false);
+
+      const formatTime = (min) => {
+         const h = Math.floor(min / 60) % 24;
+         const m = Math.floor(min % 60);
+         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+
+      const adjustDelay = (amount) => {
+        setDelayMinutes(delayMinutes + amount);
+      };
+
+      return (
+        <div className="fixed bottom-6 z-50 left-0 right-0 px-4 pointer-events-none">
+           <div className="pointer-events-auto bg-slate-900/95 backdrop-blur-xl text-white p-3 rounded-2xl shadow-2xl border border-slate-700/50 max-w-3xl mx-auto transition-all duration-300">
+             
+             <div className="flex items-center gap-2">
+                 <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input 
+                      type="text"
+                      placeholder="Search team, category..."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 placeholder-slate-600 transition-all shadow-inner"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                 </div>
+                 
+                 <button 
+                    onClick={() => setIsOpen(!isOpen)}
+                    className={`p-2.5 rounded-xl transition-all duration-200 border ${isOpen ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/50' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                 >
+                    <Settings size={18} />
+                 </button>
+             </div>
+
+             {isOpen && (
+                <div className="mt-4 space-y-4 animate-in slide-in-from-bottom-2 duration-300 fade-in pb-1">
+                    
+                    <div className="flex items-center justify-between px-1">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Settings</div>
+                        <button 
+                            onClick={() => setIsAdminMode(!isAdminMode)}
+                            className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded transition-colors ${isAdminMode ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+                        >
+                            {isAdminMode ? <Unlock size={10} /> : <Lock size={10} />}
+                            Admin Mode
+                        </button>
+                    </div>
+                    
+                    <div className="grid gap-3">
+                        <div className="bg-slate-800/50 p-1 rounded-xl flex text-sm font-medium text-slate-400">
+                            <button 
+                                onClick={() => setSelectedDay('Friday')}
+                                className={`flex-1 py-2 rounded-lg transition-all ${selectedDay === 'Friday' ? 'bg-slate-700 text-white shadow-sm' : 'hover:bg-slate-700/50 hover:text-slate-300'}`}
+                            >
+                                Friday
+                            </button>
+                            <button 
+                                onClick={() => setSelectedDay('Saturday')}
+                                className={`flex-1 py-2 rounded-lg transition-all ${selectedDay === 'Saturday' ? 'bg-slate-700 text-white shadow-sm' : 'hover:bg-slate-700/50 hover:text-slate-300'}`}
+                            >
+                                Saturday
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${isLiveMode ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                    {isLiveMode ? <Zap size={16} /> : <Clock size={16} />}
+                                </div>
+                                <div>
+                                    <div className="font-semibold text-xs text-slate-200">
+                                        {isLiveMode ? 'Live Sync Active' : 'Manual Time'}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500">
+                                        {isLiveMode ? 'Following real-time schedule' : 'Time set manually'}
+                                    </div>
+                                </div>
+                            </div>
+                            {isAdminMode && (
+                                <button 
+                                    onClick={() => setIsLiveMode(!isLiveMode)}
+                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${isLiveMode ? 'bg-emerald-600' : 'bg-slate-600'}`}
+                                >
+                                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${isLiveMode ? 'translate-x-5' : 'translate-x-1'}`} />
+                                </button>
+                            )}
+                        </div>
+
+                        {isAdminMode && (
+                            <React.Fragment>
+                                <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <label className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                                        Schedule Offset
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={() => adjustDelay(-1)} className="p-1 hover:bg-slate-600 rounded"><Minus size={12} className="text-slate-400"/></button>
+                                            <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded min-w-[40px] text-center ${delayMinutes === 0 ? 'bg-slate-700 text-slate-300' : delayMinutes > 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                {delayMinutes > 0 ? `+${delayMinutes}` : `${delayMinutes}`}m
+                                            </span>
+                                            <button onClick={() => adjustDelay(1)} className="p-1 hover:bg-slate-600 rounded"><Plus size={12} className="text-slate-400"/></button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-4 gap-2 mb-3">
+                                        <button onClick={() => setDelayMinutes(0)} className="bg-slate-700 hover:bg-slate-600 text-[10px] py-1.5 rounded-md text-slate-300 transition-colors">Reset</button>
+                                        <button onClick={() => adjustDelay(-5)} className="bg-slate-700 hover:bg-slate-600 text-[10px] py-1.5 rounded-md text-emerald-400 transition-colors">-5m</button>
+                                        <button onClick={() => adjustDelay(5)} className="bg-slate-700 hover:bg-slate-600 text-[10px] py-1.5 rounded-md text-rose-400 transition-colors">+5m</button>
+                                        <button onClick={() => adjustDelay(10)} className="bg-slate-700 hover:bg-slate-600 text-[10px] py-1.5 rounded-md text-rose-400 transition-colors">+10m</button>
+                                    </div>
+                                </div>
+
+                                {!isLiveMode && (
+                                    <div className="bg-amber-900/20 p-3 rounded-xl border border-amber-500/30">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="text-[10px] font-bold uppercase text-amber-500/80 tracking-wider">
+                                            Time Travel
+                                            </label>
+                                            <span className="font-mono text-lg font-bold text-amber-400">
+                                                {formatTime(currentTime)}
+                                            </span>
+                                        </div>
+                                        <input 
+                                            type="range" 
+                                            min="420"  // 07:00
+                                            max="1260" // 21:00
+                                            step="1" 
+                                            value={currentTime}
+                                            onChange={(e) => setCurrentTime(parseInt(e.target.value))}
+                                            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                        />
+                                    </div>
+                                )}
+                            </React.Fragment>
+                        )}
+                    </div>
+                </div>
+             )}
+           </div>
+        </div>
+      );
+    };
+
+    // --- components/SidePanel.tsx ---
+    const SidePanel = ({ 
+        isOpen, 
+        onClose, 
+        currentView, 
+        onChangeView,
+        favCount,
+        homeTeam
+    }) => {
+      return (
+        <React.Fragment>
+          <div 
+            className={`fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            onClick={onClose}
+          />
+
+          <div className={`fixed top-0 left-0 bottom-0 w-[280px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h2 className="font-bold text-slate-900 text-lg tracking-tight">Menu</h2>
+                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
+                    <X size={20} />
+                </button>
+            </div>
+
+            <div className="p-3 space-y-1 flex-1 overflow-y-auto">
+                <button 
+                    onClick={() => { onChangeView('schedule'); onClose(); }}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${currentView === 'schedule' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                    <div className="flex items-center gap-3">
+                        <Calendar size={18} />
+                        <span className="font-medium">Timetable</span>
+                    </div>
+                    {currentView === 'schedule' && <ChevronRight size={16} />}
+                </button>
+
+                <button 
+                    onClick={() => { onChangeView('teams'); onClose(); }}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${currentView === 'teams' ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                    <div className="flex items-center gap-3">
+                        <Users size={18} />
+                        <span className="font-medium">My Teams</span>
+                    </div>
+                    {currentView === 'teams' && <ChevronRight size={16} />}
+                </button>
+
+                <div className="my-4 border-t border-slate-100 mx-3"></div>
+
+                <div className="px-3 py-2">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Stats</h3>
+                    
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 text-slate-600">
+                                <Home size={14} className="text-blue-500" />
+                                <span>Home Team</span>
+                            </div>
+                            <span className={`font-medium ${homeTeam ? 'text-slate-900' : 'text-slate-400 italic'}`}>
+                                {homeTeam || 'None'}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 text-slate-600">
+                                <Heart size={14} className="text-amber-500" />
+                                <span>Favorites</span>
+                            </div>
+                            <span className="font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs">
+                                {favCount}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50">
+                <p className="text-[10px] text-slate-400 text-center">
+                    Skate London Synchro 2025<br/>
+                    Unofficial Companion App
+                </p>
+            </div>
+          </div>
+        </React.Fragment>
+      );
+    };
+
+    // --- components/TeamsView.tsx ---
+    const TeamsView = ({
+        homeTeam,
+        favorites,
+        schedule,
+        currentMinutes,
+        delayMinutes,
+        onSetHomeTeam,
+        onToggleFavorite
+    }) => {
+
+        const homeTeamEvents = useMemo(() => {
+            if (!homeTeam) return [];
+            return schedule.filter(item => item.team === homeTeam);
+        }, [homeTeam, schedule]);
+
+        const favoriteEvents = useMemo(() => {
+            return schedule.filter(item => favorites.has(item.id) && item.team !== homeTeam);
+        }, [favorites, schedule, homeTeam]);
+
+        const nextHomeEvent = useMemo(() => {
+            return homeTeamEvents.find(item => {
+                const start = timeToMinutes(item.startTime) + delayMinutes;
+                return start > currentMinutes;
+            });
+        }, [homeTeamEvents, currentMinutes, delayMinutes]);
+
+        return (
+            <div className="space-y-8 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                
+                <section>
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <Home className="text-blue-500" size={20} />
+                            Home Team
+                        </h2>
+                        {homeTeam && (
+                            <button 
+                                onClick={() => onSetHomeTeam(null)}
+                                className="text-xs text-rose-500 font-medium hover:underline"
+                            >
+                                Clear Home Team
+                            </button>
+                        )}
+                    </div>
+
+                    {homeTeam ? (
+                        <div className="bg-white rounded-2xl border border-blue-100 shadow-xl shadow-blue-500/5 overflow-hidden">
+                            <div className="bg-blue-500 p-4 text-white">
+                                <h3 className="text-2xl font-bold">{homeTeam}</h3>
+                                <p className="text-blue-100 text-sm font-medium opacity-90">
+                                    {homeTeamEvents[0]?.category || 'Team'}
+                                </p>
+                            </div>
+                            
+                            {nextHomeEvent ? (
+                                 <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-blue-800">
+                                        <Clock size={16} />
+                                        <span className="text-xs font-bold uppercase tracking-wider">Up Next</span>
+                                    </div>
+                                    <div className="text-right">
+                                         <span className="block text-sm font-bold font-mono text-blue-900">
+                                            {getRelativeTimeText(timeToMinutes(nextHomeEvent.startTime) + delayMinutes, currentMinutes)}
+                                         </span>
+                                    </div>
+                                 </div>
+                            ) : (
+                                <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 text-slate-500 text-xs italic">
+                                    No upcoming events for today.
+                                </div>
+                            )}
+
+                            <div className="p-4 space-y-6">
+                                {homeTeamEvents.map((item, idx) => {
+                                    const start = timeToMinutes(item.startTime) + delayMinutes;
+                                    const end = timeToMinutes(item.endTime) + delayMinutes;
+                                    const status = getEventStatus(start, end, currentMinutes);
+                                    const isLive = status === 'live';
+
+                                    return (
+                                        <div key={item.id} className={`relative pl-4 ${idx !== homeTeamEvents.length - 1 ? 'pb-6 border-l border-slate-200' : ''}`}>
+                                            <div className={`absolute -left-1.5 top-0 w-3 h-3 rounded-full border-2 ${isLive ? 'bg-blue-500 border-blue-100 ring-4 ring-blue-50' : 'bg-white border-slate-300'}`}></div>
+                                            
+                                            <div className="mb-1 flex justify-between items-start">
+                                                <div>
+                                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border mb-1 inline-block ${
+                                                        item.type === EventType.COMPETITION 
+                                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
+                                                        : 'bg-cyan-50 text-cyan-700 border-cyan-100'
+                                                    }`}>
+                                                        {item.type}
+                                                    </span>
+                                                    <h4 className="font-bold text-slate-900">{item.category}</h4>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className={`font-mono font-bold ${isLive ? 'text-blue-600' : 'text-slate-700'}`}>
+                                                        {minutesToTime(start)}
+                                                    </div>
+                                                    <div className="text-xs text-slate-400">{minutesToTime(end)}</div>
+                                                </div>
+                                            </div>
+
+                                            {item.logistics && (
+                                                <div className="mt-3 bg-slate-50 rounded-lg p-2.5 border border-slate-100 grid grid-cols-1 gap-2">
+                                                    <div className="flex items-center gap-3 text-xs">
+                                                        <div className="w-10 font-mono text-slate-400 text-right">{item.logistics.offIce?.enter}</div>
+                                                        <div className="h-px flex-1 bg-slate-200"></div>
+                                                        <div className="flex items-center gap-1 text-slate-600 w-32 truncate">
+                                                            <MapPin size={10} /> Off Ice {item.logistics.offIce?.area}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-xs">
+                                                        <div className="w-10 font-mono text-slate-400 text-right">{item.logistics.dressingRoom?.enter}</div>
+                                                        <div className="h-px flex-1 bg-slate-200"></div>
+                                                        <div className="flex items-center gap-1 text-slate-600 w-32 truncate">
+                                                            <Shirt size={10} /> Room {item.logistics.dressingRoom?.name}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-xs">
+                                                        <div className="w-10 font-mono text-slate-400 text-right">{item.logistics.dressingRoom?.rinkside}</div>
+                                                        <div className="h-px flex-1 bg-slate-200"></div>
+                                                        <div className="flex items-center gap-1 text-slate-600 w-32 truncate">
+                                                            <ArrowRight size={10} /> Rinkside
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white border border-slate-200 border-dashed rounded-xl p-6 text-center">
+                            <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-400">
+                                <Home size={24} />
+                            </div>
+                            <h3 className="text-slate-900 font-medium text-sm mb-1">No Home Team Selected</h3>
+                            <p className="text-slate-500 text-xs">Select a team from the timetable to see detailed logistics and tracking here.</p>
+                        </div>
+                    )}
+                </section>
+
+                <section>
+                     <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
+                        <Star className="text-amber-400" fill="currentColor" size={20} />
+                        Starred Teams
+                    </h2>
+
+                    {favoriteEvents.length > 0 ? (
+                        <div className="grid gap-3">
+                            {favoriteEvents.map(item => {
+                                 const start = timeToMinutes(item.startTime) + delayMinutes;
+                                 const status = getEventStatus(start, timeToMinutes(item.endTime) + delayMinutes, currentMinutes);
+                                 
+                                 return (
+                                    <div key={item.id} className="bg-white border border-slate-200 rounded-lg p-3 flex justify-between items-center shadow-sm">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <h4 className="font-bold text-slate-900 text-sm">{item.team}</h4>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium border border-slate-200">
+                                                    {item.category}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                <span className={`font-medium ${item.day === 'Friday' ? 'text-indigo-600' : 'text-cyan-600'}`}>
+                                                    {item.day}
+                                                </span>
+                                                <span>•</span>
+                                                <span>{item.type}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-right">
+                                            <div className={`font-mono font-bold text-sm ${status === 'live' ? 'text-blue-600' : 'text-slate-700'}`}>
+                                                {minutesToTime(start)}
+                                            </div>
+                                            <button 
+                                                onClick={() => onToggleFavorite(item.id)}
+                                                className="text-amber-400 hover:text-amber-500 p-1 -mr-1"
+                                            >
+                                                <Star size={14} fill="currentColor" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                 );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 text-slate-400 text-xs italic bg-slate-50 rounded-xl border border-slate-100">
+                            No other starred teams found.
+                        </div>
+                    )}
+                </section>
+            </div>
+        );
+    };
+
+    // --- App.tsx ---
+    const App = () => {
+      // -- State --
+      const [isLiveMode, setIsLiveMode] = useState(true);
+      const [currentTime, setCurrentTime] = useState(() => getMinutesFromMidnight(new Date()));
+      const [delayMinutes, setDelayMinutes] = useState(0);
+      const [selectedDay, setSelectedDay] = useState('Saturday'); 
+      
+      // View State
+      const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+      const [currentView, setCurrentView] = useState('schedule');
+      const [homeTeam, setHomeTeam] = useState(() => {
+          return localStorage.getItem('synchroHomeTeam');
+      });
+
+      // Filter & User Preference state
+      const [searchTerm, setSearchTerm] = useState('');
+      const [activeTab, setActiveTab] = useState('all');
+      const [favorites, setFavorites] = useState(() => {
+          try {
+              const saved = localStorage.getItem('synchroFavorites');
+              return saved ? new Set(JSON.parse(saved)) : new Set();
+          } catch (e) {
+              return new Set();
+          }
+      });
+
+      // -- Effects --
+
+      // Live Clock & Date Logic
+      useEffect(() => {
+        const updateTime = () => {
+            const now = new Date();
+            setCurrentTime(getMinutesFromMidnight(now));
+            
+            if (isLiveMode) {
+                const day = now.getDay(); 
+                if (day === 5) setSelectedDay('Friday');
+                else if (day === 6) setSelectedDay('Saturday');
+            }
+        };
+
+        if (isLiveMode) {
+          updateTime(); 
+          const interval = setInterval(updateTime, 10000); 
+          return () => clearInterval(interval);
+        }
+      }, [isLiveMode]);
+
+      // Persist Favorites & Home Team
+      useEffect(() => {
+          localStorage.setItem('synchroFavorites', JSON.stringify(Array.from(favorites)));
+      }, [favorites]);
+
+      useEffect(() => {
+          if (homeTeam) localStorage.setItem('synchroHomeTeam', homeTeam);
+          else localStorage.removeItem('synchroHomeTeam');
+      }, [homeTeam]);
+
+      // Handlers
+      const toggleFavorite = (id) => {
+          const newFavs = new Set(favorites);
+          if (newFavs.has(id)) {
+              newFavs.delete(id);
+          } else {
+              newFavs.add(id);
+          }
+          setFavorites(newFavs);
+      };
+
+      const handleSetHomeTeam = (team) => {
+          setHomeTeam(team);
+          if (team) {
+              setCurrentView('teams');
+          }
+      };
+
+      // -- Computed --
+      const filteredSchedule = useMemo(() => {
+        return RAW_SCHEDULE.filter(item => {
+          if (item.day !== selectedDay) return false;
+
+          const matchesSearch = searchTerm === '' || 
+             item.team.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             item.category.toLowerCase().includes(searchTerm.toLowerCase());
+          
+          let matchesTab = true;
+          if (activeTab === 'practice') matchesTab = item.type === EventType.PRACTICE || item.type === EventType.BREAK;
+          if (activeTab === 'competition') matchesTab = item.type === EventType.COMPETITION || item.type === EventType.BREAK || item.type === EventType.PANEL_RESET || item.type === EventType.PRESENTATION;
+          if (activeTab === 'favorites') matchesTab = favorites.has(item.id);
+          
+          return matchesSearch && matchesTab;
+        });
+      }, [searchTerm, activeTab, favorites, selectedDay]);
+
+      return (
+        <div className="min-h-screen bg-slate-50 pb-40 font-sans text-slate-900">
+          
+          {/* Side Panel */}
+          <SidePanel 
+            isOpen={isSidePanelOpen} 
+            onClose={() => setIsSidePanelOpen(false)}
+            currentView={currentView}
+            onChangeView={setCurrentView}
+            favCount={favorites.size}
+            homeTeam={homeTeam}
+          />
+
+          {/* Header */}
+          <header className="bg-white/95 backdrop-blur-sm border-b border-slate-200 sticky top-0 z-40 transition-all shadow-sm">
+            <div className="max-w-3xl mx-auto px-4 py-3">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => setIsSidePanelOpen(true)}
+                        className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    >
+                        <Menu size={20} />
+                    </button>
+                    <div>
+                        <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                            Skate London
+                            {isLiveMode && <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]"></span>}
+                        </h1>
+                        <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
+                            <span className="flex items-center gap-1"><Calendar size={10} /> {currentView === 'schedule' ? EVENT_DATES[selectedDay] : 'My Teams'}</span>
+                        </div>
+                    </div>
+                </div>
+              </div>
+              
+              {/* Filter Tabs - Only show in schedule view */}
+              {currentView === 'schedule' && (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    <button 
+                    onClick={() => setActiveTab('all')}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${activeTab === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                    >
+                    All Events
+                    </button>
+                    <button 
+                    onClick={() => setActiveTab('practice')}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${activeTab === 'practice' ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-slate-600 border-slate-200 hover:border-cyan-300 hover:text-cyan-700'}`}
+                    >
+                    Practice
+                    </button>
+                    <button 
+                    onClick={() => setActiveTab('competition')}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${activeTab === 'competition' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-700'}`}
+                    >
+                    Competition
+                    </button>
+                    <button 
+                    onClick={() => setActiveTab('favorites')}
+                    className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${activeTab === 'favorites' ? 'bg-amber-400 text-white border-amber-400' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-600'}`}
+                    >
+                    <Star size={10} fill={activeTab === 'favorites' ? "currentColor" : "none"}/>
+                    <span className="tabular-nums">{favorites.size}</span>
+                    </button>
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main className="max-w-3xl mx-auto px-3 pt-4">
+            
+            {currentView === 'schedule' ? (
+                <React.Fragment>
+                    {/* Live Dashboard */}
+                    {!searchTerm && activeTab !== 'favorites' && (
+                        <StatusDashboard 
+                            schedule={filteredSchedule} 
+                            currentMinutes={currentTime} 
+                            delayMinutes={delayMinutes} 
+                        />
+                    )}
+
+                    {!isLiveMode && (
+                        <div className="flex justify-between items-center bg-amber-50 border border-amber-100 text-amber-800 px-3 py-2 rounded-lg mb-4 text-xs font-medium">
+                            <div className="flex items-center gap-2">
+                                <Clock size={14} />
+                                <span>Manual Time Mode Active</span>
+                            </div>
+                            <button onClick={() => setIsLiveMode(true)} className="text-amber-600 hover:underline">Switch to Live</button>
+                        </div>
+                    )}
+
+                    {/* Schedule List */}
+                    <div className="relative pb-24">
+                        {/* Continuous Timeline Line Background (Left side) */}
+                        <div className="absolute left-[19px] top-2 bottom-0 w-px bg-slate-200 -z-10 hidden md:block"></div>
+
+                        {filteredSchedule.length > 0 ? (
+                            <div className="space-y-2">
+                            {filteredSchedule.map((item, index) => (
+                                <EventCard 
+                                    key={item.id} 
+                                    item={item} 
+                                    currentMinutes={currentTime} 
+                                    delayMinutes={delayMinutes}
+                                    isFavorite={favorites.has(item.id)}
+                                    isHomeTeam={homeTeam === item.team}
+                                    onToggleFavorite={toggleFavorite}
+                                    onSetHomeTeam={handleSetHomeTeam}
+                                    isLast={index === filteredSchedule.length - 1}
+                                />
+                            ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-slate-200 border-dashed">
+                                <div className="bg-slate-50 p-3 rounded-full mb-2">
+                                    <Filter className="text-slate-300" size={24} />
+                                </div>
+                                <h3 className="text-slate-900 font-semibold text-sm mb-1">No events found</h3>
+                                <p className="text-slate-500 text-xs max-w-[200px] mx-auto">
+                                    {activeTab === 'favorites' 
+                                        ? "Tap the star icon on any event to add it to your favorites." 
+                                        : "No events match your filters for this day."}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </React.Fragment>
+            ) : (
+                <TeamsView 
+                    homeTeam={homeTeam}
+                    favorites={favorites}
+                    schedule={RAW_SCHEDULE} 
+                    currentMinutes={currentTime}
+                    delayMinutes={delayMinutes}
+                    onSetHomeTeam={handleSetHomeTeam}
+                    onToggleFavorite={toggleFavorite}
+                />
+            )}
+          </main>
+
+          {/* Floating Controls */}
+          <ControlPanel 
+             delayMinutes={delayMinutes} 
+             setDelayMinutes={setDelayMinutes}
+             searchTerm={searchTerm}
+             setSearchTerm={setSearchTerm}
+             currentTime={currentTime}
+             setCurrentTime={setCurrentTime}
+             isLiveMode={isLiveMode}
+             setIsLiveMode={setIsLiveMode}
+             selectedDay={selectedDay}
+             setSelectedDay={setSelectedDay}
+          />
+
+        </div>
+      );
+    };
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
