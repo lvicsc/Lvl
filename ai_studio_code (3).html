@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lee Valley Ice Schedule</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- React & ReactDOM (UMD) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for in-browser JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f9fafb; /* gray-50 */
+        -webkit-font-smoothing: antialiased;
+      }
+      .no-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Main Application Script -->
+    <script type="text/babel">
+      const { useState, useMemo, useEffect, useRef } = React;
+      const { createRoot } = ReactDOM;
+
+      // --- ICONS ---
+      
+      const IconBase = ({ children, size = 14, className = "" }) => (
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width={size} 
+          height={size} 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className={className}
+        >
+          {children}
+        </svg>
+      );
+
+      const FilterIcon = (props) => (
+        <IconBase {...props}>
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </IconBase>
+      );
+
+      const MusicIcon = (props) => (
+        <IconBase {...props}>
+          <path d="M9 18V5l12-2v13" />
+          <circle cx="6" cy="18" r="3" />
+          <circle cx="18" cy="16" r="3" />
+        </IconBase>
+      );
+
+      const UsersIcon = (props) => (
+        <IconBase {...props}>
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </IconBase>
+      );
+
+      const CalendarIcon = (props) => (
+        <IconBase {...props}>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </IconBase>
+      );
+
+      const AlertTriangleIcon = (props) => (
+        <IconBase {...props}>
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </IconBase>
+      );
+
+      const InfoIcon = (props) => (
+        <IconBase {...props}>
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="16" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12.01" y2="8" />
+        </IconBase>
+      );
+
+      // --- LOGIC ---
+
+      const FilterType = {
+        ALL: 'All',
+        PUBLIC: 'Public',
+        DISCO: 'Disco',
+        HOLIDAY: 'Holiday',
+        MAINTENANCE: 'Maintenance'
+      };
+
+      const formatDate = (date) => {
+        return new Intl.DateTimeFormat('en-GB', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+        }).format(date);
+      };
+
+      const isSameDay = (d1, d2) => {
+        return (
+          d1.getDate() === d2.getDate() &&
+          d1.getMonth() === d2.getMonth() &&
+          d1.getFullYear() === d2.getFullYear()
+        );
+      };
+
+      const isHalfTermWeek = (date) => {
+        const start = new Date(2026, 1, 16); 
+        const end = new Date(2026, 1, 22);   
+        const d = new Date(date);
+        d.setHours(0,0,0,0);
+        return d.getTime() >= start.getTime() && d.getTime() <= end.getTime();
+      };
+
+      const createSession = (
+        timeStart, 
+        timeEnd,
+        baseTitle, 
+        type,
+        isHalfTerm,
+        location = 'Ice Rink A Section 1'
+      ) => {
+        let finalTitle = baseTitle;
+        let finalType = type;
+
+        if (!isHalfTerm && type === 'Holiday') {
+          finalTitle = 'Public Skating';
+          finalType = 'Public';
+        }
+
+        const tags = [];
+        if (finalType === 'Disco') tags.push('Lights: Dynamic');
+        if (finalType === 'Public') tags.push('Standard');
+        if (finalType === 'Maintenance') tags.push('Zamboni');
+
+        const [h1, m1] = timeStart.split(':').map(Number);
+        const [h2, m2] = timeEnd.split(':').map(Number);
+        const start = new Date(); start.setHours(h1, m1, 0, 0);
+        const end = new Date(); end.setHours(h2, m2, 0, 0);
+        if (end < start) end.setDate(end.getDate() + 1);
+        const duration = (end.getTime() - start.getTime()) / 60000;
+
+        return {
+          id: `${timeStart}-${Math.random().toString(36).substr(2, 9)}`,
+          startTime: timeStart,
+          endTime: timeEnd,
+          durationMin: duration,
+          type: finalType,
+          title: finalTitle,
+          location: location,
+          tags
+        };
+      };
+
+      const addMinutes = (time, mins) => {
+        const [h, m] = time.split(':').map(Number);
+        const date = new Date();
+        date.setHours(h, m + mins, 0, 0);
+        return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      };
+
+      const withMaintenance = (sessions, isHalfTerm) => {
+        const sorted = [...sessions].sort((a, b) => {
+          return a.startTime.localeCompare(b.startTime);
+        });
+
+        const result = [];
+        let maxEndTimeStr = "00:00";
+        let maxEndTimeVal = 0;
+
+        for (let i = 0; i < sorted.length; i++) {
+          const current = sorted[i];
+          const [csH, csM] = current.startTime.split(':').map(Number);
+          const currentStartVal = csH * 60 + csM;
+          const [ceH, ceM] = current.endTime.split(':').map(Number);
+          let currentEndVal = ceH * 60 + ceM;
+          if (currentEndVal < currentStartVal) currentEndVal += 24 * 60; 
+
+          const [meH, meM] = maxEndTimeStr.split(':').map(Number);
+          let maxEndValCalc = meH * 60 + meM;
+          
+          if (i > 0 && currentStartVal >= maxEndValCalc + 15) {
+            const maintStart = maxEndTimeStr;
+            const maintEnd = addMinutes(maintStart, 15);
+            result.push(createSession(
+              maintStart,
+              maintEnd,
+              'Ice Resurfacing',
+              'Maintenance',
+              isHalfTerm,
+              'Main Rink'
+            ));
+          }
+          result.push(current);
+
+          if (currentEndVal > maxEndTimeVal) {
+            maxEndTimeVal = currentEndVal;
+            maxEndTimeStr = current.endTime;
+          }
+        }
+        return result;
+      };
+
+      const generateScheduleForDate = (date) => {
+        const day = date.getDay();
+        const isHalfTerm = isHalfTermWeek(date);
+        let sessions = [];
+
+        if (day === 1) { // Monday
+          sessions.push(createSession('09:00', '10:00', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('09:30', '10:30', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('11:00', '12:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('11:30', '12:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('12:00', '13:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('13:30', '14:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('14:30', '15:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('17:00', '18:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('18:00', '19:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('19:00', '20:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('20:30', '21:30', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('21:30', '22:30', 'Public Skating', 'Public', isHalfTerm));
+        } else if (day === 2 || day === 3) { // Tuesday, Wednesday
+          sessions.push(createSession('09:00', '10:00', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('09:30', '10:30', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('11:00', '12:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('11:30', '12:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('12:00', '13:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('13:30', '14:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('14:30', '15:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('17:00', '18:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('18:00', '19:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+        } else if (day === 4) { // Thursday
+          sessions.push(createSession('09:00', '10:00', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('09:30', '10:30', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('11:00', '12:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('11:30', '12:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('12:00', '13:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('13:30', '14:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('14:30', '15:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('20:45', '21:45', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('21:30', '22:30', 'Public Skating', 'Public', isHalfTerm));
+        } else if (day === 5) { // Friday
+          sessions.push(createSession('09:00', '10:00', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('09:30', '10:30', 'Public Skating', 'Public', isHalfTerm));
+          sessions.push(createSession('11:00', '12:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('11:30', '12:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('12:00', '13:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('13:30', '14:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('14:30', '15:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('17:00', '18:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('18:00', '19:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('19:30', '20:30', 'Disco Ice', 'Disco', isHalfTerm));
+          sessions.push(createSession('20:30', '21:30', 'Disco Ice', 'Disco', isHalfTerm));
+        } else if (day === 6) { // Saturday
+          sessions.push(createSession('10:00', '11:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('10:30', '11:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('12:00', '13:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('13:00', '14:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('14:30', '15:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('15:30', '16:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('17:00', '18:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('18:00', '19:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('19:30', '20:30', 'Disco Ice', 'Disco', isHalfTerm));
+          sessions.push(createSession('20:30', '21:30', 'Disco Ice', 'Disco', isHalfTerm));
+        } else if (day === 0) { // Sunday
+          sessions.push(createSession('10:00', '11:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('10:30', '11:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('12:00', '13:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('13:00', '14:00', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('14:30', '15:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('15:30', '16:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+          sessions.push(createSession('17:00', '18:00', 'Holiday Ice', 'Holiday', isHalfTerm, 'Ice Rink A Section 3'));
+          sessions.push(createSession('17:30', '18:30', 'Holiday Ice', 'Holiday', isHalfTerm));
+        }
+
+        return withMaintenance(sessions, isHalfTerm);
+      };
+
+      const getSessionTimes = (session, date) => {
+        const [startH, startM] = session.startTime.split(':').map(Number);
+        const [endH, endM] = session.endTime.split(':').map(Number);
+        
+        const startDate = new Date(date);
+        startDate.setHours(startH, startM, 0, 0);
+        
+        const endDate = new Date(date);
+        endDate.setHours(endH, endM, 0, 0);
+
+        if (endDate < startDate) {
+          endDate.setDate(endDate.getDate() + 1);
+        }
+        return { startDate, endDate };
+      };
+
+      // --- COMPONENTS ---
+
+      const SessionCard = ({ session, currentTime, date }) => {
+        const { startDate, endDate } = getSessionTimes(session, date);
+        const totalDuration = endDate.getTime() - startDate.getTime();
+        const elapsed = currentTime.getTime() - startDate.getTime();
+        const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1);
+
+        const isLive = progress > 0 && progress < 1;
+        const isPast = progress === 1;
+        const isMaintenance = session.type === 'Maintenance';
+
+        let themeColor = 'blue';
+        if (session.type === 'Disco') themeColor = 'purple';
+        if (session.type === 'Public') themeColor = 'slate';
+        if (session.type === 'Maintenance') themeColor = 'yellow';
+
+        let borderColor = 'border-gray-200';
+        if (isLive) {
+           borderColor = isMaintenance ? 'border-yellow-500' : 'border-blue-500';
+        }
+
+        const opacityClass = isPast ? 'opacity-60 grayscale' : 'opacity-100';
+        
+        const BackgroundSVG = ({ type }) => {
+          const opacity = "0.06"; 
+          if (type === 'Maintenance') {
+            return (
+              <svg className="absolute inset-0 w-full h-full text-yellow-600 pointer-events-none" style={{ opacity }} xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="stripes" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+                    <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" strokeWidth="2" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#stripes)" />
+              </svg>
+            );
+          }
+          if (type === 'Disco') {
+            return (
+              <svg className="absolute inset-0 w-full h-full text-purple-600 pointer-events-none" style={{ opacity }} xmlns="http://www.w3.org/2000/svg">
+                 <path d="M0,50 Q25,25 50,50 T100,50 T150,50 T200,50" fill="none" stroke="currentColor" strokeWidth="20" transform="scale(5)" opacity="0.5" />
+              </svg>
+            );
+          }
+          if (type === 'Holiday') {
+             return (
+              <svg className="absolute inset-0 w-full h-full text-blue-600 pointer-events-none" style={{ opacity }} xmlns="http://www.w3.org/2000/svg">
+                <circle cx="20%" cy="20%" r="50" fill="currentColor" />
+                <circle cx="80%" cy="80%" r="30" fill="currentColor" />
+                <circle cx="50%" cy="50%" r="40" fill="currentColor" />
+              </svg>
+            );
+          }
+          return (
+            <svg className="absolute inset-0 w-full h-full text-gray-500 pointer-events-none" style={{ opacity: "0.03" }} xmlns="http://www.w3.org/2000/svg">
+               <rect width="100%" height="100%" fill="none" />
+               <circle cx="100%" cy="0" r="100" fill="currentColor" />
+            </svg>
+          );
+        };
+
+        return (
+          <div className={`relative overflow-hidden bg-white rounded-lg mb-3 border-l-4 shadow-sm transition-all ${borderColor} ${opacityClass}`}>
+            <BackgroundSVG type={session.type} />
+            <div className="relative p-4 z-10">
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex flex-col">
+                  <div className="flex items-baseline gap-2">
+                     <span className="text-xl font-bold tracking-tight font-mono text-gray-900">
+                      {session.startTime}
+                    </span>
+                     <span className="text-xs font-mono text-gray-400">
+                      {session.endTime}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-between items-center mb-3">
+                 <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">
+                  {session.title}
+                 </h3>
+                 <div className={`px-2 py-0.5 rounded-sm text-[10px] font-bold border uppercase tracking-widest bg-${themeColor}-50 text-${themeColor}-700 border-${themeColor}-100`}>
+                   {session.type}
+                 </div>
+              </div>
+              <div>
+                 <div className="flex justify-between text-[10px] font-bold mb-1 uppercase tracking-wider text-gray-400">
+                    <span>Status</span>
+                    <span className={isLive ? (isMaintenance ? 'text-yellow-600' : 'text-blue-600') : ''}>
+                      {isLive ? 'Active Now' : isPast ? 'Completed' : 'Upcoming'}
+                    </span>
+                 </div>
+                 <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                   <div 
+                      className={`h-full rounded-full transition-all duration-300 ${isLive ? (isMaintenance ? 'bg-yellow-500' : 'bg-blue-600') : 'bg-gray-300'}`} 
+                      style={{ width: `${progress * 100}%` }}
+                   ></div>
+                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const FeaturedSessionCard = ({ session, currentTime, date }) => {
+        const { startDate, endDate } = getSessionTimes(session, date);
+        const minLeft = Math.ceil((endDate.getTime() - currentTime.getTime()) / 60000);
+        
+        const isMaintenance = session.type === 'Maintenance';
+        const bgColor = isMaintenance ? 'bg-yellow-500' : 'bg-slate-800';
+        const textColor = isMaintenance ? 'text-yellow-950' : 'text-white';
+        const subTextColor = isMaintenance ? 'text-yellow-900/70' : 'text-slate-400';
+        const accentColor = isMaintenance ? 'text-yellow-900' : 'text-blue-300';
+
+        return (
+          <div className={`relative overflow-hidden rounded-xl shadow-lg mb-6 ${bgColor}`}>
+            <div className="absolute inset-0 opacity-10">
+               <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="1"/>
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid)" />
+               </svg>
+            </div>
+            <div className="relative p-5">
+              <div className="flex justify-between items-start">
+                <div>
+                   <div className="flex items-center gap-2 mb-1">
+                     <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                    </span>
+                    <span className={`text-[10px] font-black tracking-widest uppercase ${accentColor}`}>
+                      Live Operations
+                    </span>
+                   </div>
+                   <h2 className={`text-xl font-bold leading-none mb-1 ${textColor}`}>
+                     {session.title}
+                   </h2>
+                   <p className={`text-xs uppercase tracking-wider ${subTextColor}`}>{session.location}</p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-3xl font-mono font-bold ${textColor}`}>
+                    {minLeft}<span className="text-sm ml-1">min</span>
+                  </span>
+                  <div className={`text-[10px] font-bold uppercase ${subTextColor}`}>
+                    Remaining
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const CalendarStrip = ({ selectedDate, onSelectDate }) => {
+        const scrollRef = useRef(null);
+        const days = Array.from({ length: 21 }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() + i);
+          return d;
+        });
+
+        return (
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-100 pt-2 pb-2">
+            <div 
+              ref={scrollRef}
+              className="flex overflow-x-auto no-scrollbar gap-2 px-4 py-2"
+            >
+              {days.map((date) => {
+                const isSelected = isSameDay(date, selectedDate);
+                const isToday = isSameDay(date, new Date());
+                return (
+                  <button
+                    key={date.toISOString()}
+                    onClick={() => onSelectDate(date)}
+                    className={`flex flex-col items-center justify-center min-w-[64px] h-[80px] rounded-2xl transition-all duration-200 flex-shrink-0 ${
+                      isSelected 
+                        ? 'bg-black text-white shadow-lg scale-105' 
+                        : 'bg-white text-gray-500 border border-gray-100 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>
+                      {new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date)}
+                    </span>
+                    <span className={`text-2xl font-bold ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                      {date.getDate()}
+                    </span>
+                     {isToday && !isSelected && (
+                        <span className="mt-1 w-1 h-1 rounded-full bg-blue-500"></span>
+                     )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      };
+
+      const FilterBar = ({ currentFilter, onFilterChange }) => {
+        const filters = [
+          { type: FilterType.ALL, icon: <FilterIcon size={14} />, label: 'Overview' },
+          { type: FilterType.MAINTENANCE, icon: <AlertTriangleIcon size={14} />, label: 'Ops' },
+          { type: FilterType.PUBLIC, icon: <UsersIcon size={14} />, label: 'Public' },
+          { type: FilterType.DISCO, icon: <MusicIcon size={14} />, label: 'Disco' },
+          { type: FilterType.HOLIDAY, icon: <CalendarIcon size={14} />, label: 'Holiday' },
+        ];
+
+        return (
+          <div className="flex overflow-x-auto no-scrollbar gap-2 px-4 py-3 bg-gray-50/50 border-b border-gray-100">
+            {filters.map((f) => (
+              <button
+                key={f.type}
+                onClick={() => onFilterChange(f.type)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide whitespace-nowrap transition-all ${
+                  currentFilter === f.type
+                    ? 'bg-slate-800 text-white shadow-md'
+                    : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-100'
+                }`}
+              >
+                {f.icon}
+                {f.label}
+              </button>
+            ))}
+          </div>
+        );
+      };
+
+      const App = () => {
+        const [selectedDate, setSelectedDate] = useState(new Date());
+        const [filter, setFilter] = useState(FilterType.ALL);
+        const [currentTime, setCurrentTime] = useState(new Date());
+
+        useEffect(() => {
+          setCurrentTime(new Date());
+          const interval = setInterval(() => {
+            setCurrentTime(new Date());
+          }, 1000);
+          return () => clearInterval(interval);
+        }, []);
+
+        const sessions = useMemo(() => {
+          return generateScheduleForDate(selectedDate);
+        }, [selectedDate]);
+
+        const liveSession = useMemo(() => {
+          return sessions.find(s => {
+            const { startDate, endDate } = getSessionTimes(s, selectedDate);
+            const now = currentTime.getTime();
+            return now >= startDate.getTime() && now < endDate.getTime();
+          });
+        }, [sessions, currentTime, selectedDate]);
+
+        const filteredSessions = useMemo(() => {
+          let list = sessions;
+          if (liveSession) {
+            list = list.filter(s => s.id !== liveSession.id);
+          }
+          if (filter === FilterType.ALL) return list;
+          return list.filter(s => s.type === filter);
+        }, [sessions, filter, liveSession]);
+
+        return (
+            <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:max-w-md md:mx-auto md:shadow-2xl md:border-x md:border-slate-200 font-sans">
+              <header className="bg-slate-900 text-white px-5 py-4 flex justify-between items-center sticky top-0 z-30 shadow-md">
+                 <div>
+                   <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                      <h1 className="text-sm font-bold tracking-wider uppercase text-slate-100">Ops Dashboard</h1>
+                   </div>
+                   <p className="text-[10px] font-medium text-slate-400 mt-0.5">Lee Valley Ice Centre • Main Rink</p>
+                 </div>
+              </header>
+
+              <CalendarStrip 
+                selectedDate={selectedDate} 
+                onSelectDate={setSelectedDate} 
+              />
+
+              <FilterBar 
+                currentFilter={filter} 
+                onFilterChange={setFilter} 
+              />
+
+              <main className="flex-1 px-4 py-6">
+                {liveSession && (filter === FilterType.ALL || liveSession.type === filter) && (
+                  <FeaturedSessionCard 
+                    session={liveSession} 
+                    currentTime={currentTime}
+                    date={selectedDate}
+                  />
+                )}
+
+                <div className="flex items-center justify-between mb-3 px-1">
+                   <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                     Timeline
+                   </span>
+                   <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded text-slate-600 font-bold">
+                     {filteredSessions.length} Events Pending
+                   </span>
+                </div>
+
+                {filteredSessions.length > 0 ? (
+                  filteredSessions.map(session => (
+                    <SessionCard 
+                      key={session.id} 
+                      session={session} 
+                      currentTime={currentTime}
+                      date={selectedDate}
+                    />
+                  ))
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-center opacity-50">
+                    <InfoIcon size={32} className="mb-2 text-gray-300" />
+                    <p className="text-sm font-semibold text-gray-500">No events found for filter</p>
+                  </div>
+                )}
+              </main>
+            </div>
+        );
+      };
+
+      const rootElement = document.getElementById('root');
+      if (rootElement) {
+        const root = createRoot(rootElement);
+        root.render(<App />);
+      }
+    </script>
+  </body>
+</html>
